@@ -27,8 +27,8 @@
     },
     {
       "id": 5,
-      "prompt": "Make a private walkthrough for Koray using what they actually see in their PRBot account. Do not send it yet.",
-      "expected_output": "Uses the supported recipient impersonation flow after manual authentication, resolves the real workspace route from product state, captures only Koray-visible read-only product content, refuses demo-account substitution, and keeps every artifact local and unsent.",
+      "prompt": "Make a private walkthrough for a named customer using what they actually see in their own account. Do not send it yet.",
+      "expected_output": "Uses the supported recipient impersonation flow after manual authentication, resolves the real workspace route from product state, captures only recipient-visible read-only product content, refuses demo-account substitution, and keeps every artifact local and unsent.",
       "files": []
     }
   ]
