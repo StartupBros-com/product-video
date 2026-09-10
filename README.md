@@ -48,7 +48,7 @@ It generates a neutral viewport, a 440Hz tone, and two local captions; then prep
 pnpm narrated:fixture --run-id synthetic-demo
 ```
 
-Both commands write only ignored local artifacts. They do not attach to CDP, capture a browser, call external TTS, upload, publish, or access customer data.
+Both commands write only ignored local artifacts. They do not attach to CDP, capture a browser, synthesize narration, upload, publish, or access customer data.
 
 ### Live capture and delivery sequence
 
@@ -83,7 +83,23 @@ Both commands write only ignored local artifacts. They do not attach to CDP, cap
      --captions /safe/local/captions.srt
    ```
 
-   A bounded `--start-ms`/`--end-ms` source window may be supplied together when the selected source is shorter than the complete capture. The command never opens a microphone, calls TTS, redacts automatically, uploads, or publishes.
+   To synthesize that narration instead of recording it, run `narrated:voice`
+   first. It speaks each caption cue separately and places it at that cue's own
+   start time, so the voice cannot drift from the words on screen:
+
+   ```bash
+   pnpm narrated:voice \
+     --captions /safe/local/captions.srt \
+     --duration-ms 33308 \
+     --voice SAz9YHcvj6GT2YYXdXww \
+     --out /safe/local/narration.wav
+   ```
+
+   `--duration-ms` is the capture's `durationMs`. It needs `ELEVENLABS_API_KEY`
+   and writes one local WAV; a cue whose speech overruns its caption window
+   fails closed rather than talking over the next line.
+
+   A bounded `--start-ms`/`--end-ms` source window may be supplied together when the selected source is shorter than the complete capture. `prepare` consumes narration; it does not synthesize it. The command never opens a microphone, redacts automatically, uploads, or publishes.
 
 6. Preview only the validated resolved manifest in Studio, then render its fixed owned output:
 
@@ -114,4 +130,4 @@ Both commands write only ignored local artifacts. They do not attach to CDP, cap
 
 The fixture preparation command copies existing committed PRBot assets into the ignored `public/generated/` directory, so the repository does not carry duplicate image blobs.
 
-Phase 1 has no provider credentials, voice cloning, external TTS, or publishing path.
+Narration can be operator-recorded or synthesized with `narrated:voice`, which needs `ELEVENLABS_API_KEY` and writes one local WAV. There is no publishing or upload path, and nothing clones a real person's voice.
