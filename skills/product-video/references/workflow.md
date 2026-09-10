@@ -14,7 +14,7 @@ Prefer committed fixtures for generic repeatable work. For a recipient-specific 
 
 Extract a small brand contract from the product: canvas, surfaces, foreground, accent, type scale, spacing, radius, logo, and density. Generated title cards and overlays should feel native to the product rather than applying a generic video skin.
 
-For narrated media, the operator supplies narration and a strict plain-text SRT locally. Do not use microphones, external TTS, or automatic redaction in V1. The pipeline does not create a human-review or redaction receipt; record any required review outside the run before capture.
+For narrated media, supply a strict plain-text SRT and either operator-recorded audio or a voice synthesized with `narrated:voice`, which speaks each caption cue and places it at that cue's own start time so the voice cannot drift from the words on screen. Do not open a microphone, and do not clone a real person's voice without their consent. Automatic redaction is still out: the pipeline creates no human-review or redaction receipt, so record any required review outside the run before capture.
 
 ## 3. Capture and prepare a narrated source
 

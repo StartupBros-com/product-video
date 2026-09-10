@@ -15,7 +15,7 @@ Produce product videos from source-traceable product material. A polished render
 3. **Authenticated browser capture:** read [capture.md](references/capture.md) before opening or attaching to a browser.
 4. **Existing-video timing or composition edit:** preserve the accepted story and edit only the requested layer; then use [qa.md](references/qa.md).
 5. **Render or verification only:** use [qa.md](references/qa.md).
-6. **Voice, music, external publishing, or third-party generation:** stop at the Phase 1 boundary in [effects.md](references/effects.md). Do not improvise credentials or publish.
+6. **Music, external publishing, or third-party generation:** stop at the boundary in [effects.md](references/effects.md). Do not improvise credentials or publish. Narration is in scope — synthesize it with `narrated:voice` using the operator's own provider key, never by cloning a real person's voice without consent.
 
 ## Non-negotiable boundaries
 
@@ -61,6 +61,7 @@ A delivered narrated render includes:
 - marker, semantic telemetry, and caption midpoint samples plus the contact sheet;
 - required caption OCR status when captions are expected;
 - any skipped or non-pass check and its concrete reason;
-- confirmation that no external TTS, upload, or publishing occurred unless it was explicitly requested and separately authorized.
+- the narration source: operator-recorded audio, or the synthesized voice ID and cue count from `narrated:voice`;
+- confirmation that no upload or publishing occurred unless it was explicitly requested and separately authorized.
 
 `public/generated/narrated/<run-id>/` and `out/narrated/<run-id>/` are local, ignored, run-owned artifact roots. Do not repoint a run to a different capture or overwrite outputs outside those roots.

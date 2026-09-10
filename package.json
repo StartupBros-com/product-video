@@ -9,6 +9,9 @@
   },
   "scripts": {
     "capture": "tsx src/cli/capture.ts",
+    "format": "prettier --check .",
+    "format:fix": "prettier --write .",
+    "lint": "eslint .",
     "narrated:capture": "tsx src/cli/narrated-capture.ts",
     "narrated:fixture": "tsx src/cli/narrated-fixture.ts",
     "narrated:prepare": "tsx src/cli/narrated-prepare.ts",
@@ -16,14 +19,12 @@
     "narrated:smoke": "tsx src/cli/narrated-smoke.ts",
     "narrated:studio": "tsx src/cli/narrated-studio.ts",
     "narrated:verify": "tsx src/cli/narrated-verify.ts",
+    "narrated:voice": "tsx src/cli/narrated-voice.ts",
     "render": "tsx src/cli/render.ts",
-    "verify": "tsx src/cli/verify.ts",
     "studio": "remotion studio src/index.ts --no-open",
     "test": "tsx --test \"src/**/*.test.ts\"",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint .",
-    "format": "prettier --check .",
-    "format:fix": "prettier --write ."
+    "verify": "tsx src/cli/verify.ts"
   },
   "dependencies": {
     "@remotion/bundler": "4.0.518",
