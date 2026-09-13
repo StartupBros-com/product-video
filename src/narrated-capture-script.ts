@@ -42,6 +42,8 @@ export function buildNarratedCaptureScript({
   const startedAt = Date.now();
   let cdpSession = null;
   let metricsOverridden = false;
+  let originalWindowBounds = null;
+  let windowResized = false;
   let captureStartedAt = null;
   let cursorX = Math.round(layout.width / 2);
   let cursorY = Math.round(layout.height * 0.6);
@@ -408,16 +410,119 @@ export function buildNarratedCaptureScript({
     assertAllFrameUrls();
 
     cdpSession = await runBounded(() => context.newCDPSession(page));
+
+    // Chrome cannot composite more device pixels than the window surface
+    // provides, so a window too small for the requested frame silently yields a
+    // letterboxed capture that still reports the declared dimensions. Measure
+    // the REAL backing scale first: once the emulation override is applied the
+    // page reports the emulated devicePixelRatio, which makes any check
+    // downstream of it tautological.
+    const nativeSurface = await runBounded(() =>
+      page.evaluate(() => ({
+        dpr: window.devicePixelRatio,
+        innerWidth: window.innerWidth,
+        innerHeight: window.innerHeight,
+        outerWidth: window.outerWidth,
+        outerHeight: window.outerHeight,
+      })),
+    );
+    const neededCssWidth = Math.ceil(scenario.project.viewport.width / nativeSurface.dpr);
+    const neededCssHeight = Math.ceil(scenario.project.viewport.height / nativeSurface.dpr);
+
+    if (
+      nativeSurface.innerWidth < neededCssWidth ||
+      nativeSurface.innerHeight < neededCssHeight
+    ) {
+      try {
+        const {windowId, bounds} = await runBounded(() =>
+          cdpSession.send('Browser.getWindowForTarget'),
+        );
+        originalWindowBounds = {windowId, bounds};
+        const chromeWidth = Math.max(0, bounds.width - nativeSurface.innerWidth);
+        const chromeHeight = Math.max(0, bounds.height - nativeSurface.innerHeight);
+        await runBounded(() =>
+          cdpSession.send('Browser.setWindowBounds', {
+            windowId,
+            bounds: {
+              windowState: 'normal',
+              width: neededCssWidth + chromeWidth,
+              height: neededCssHeight + chromeHeight,
+            },
+          }),
+        );
+        windowResized = true;
+        await waitBounded(800);
+      } catch {
+        // Sizing is best effort; the assertion below is the gate.
+      }
+    }
+
+    const resized = await runBounded(() =>
+      page.evaluate(() => ({
+        dpr: window.devicePixelRatio,
+        innerWidth: window.innerWidth,
+        innerHeight: window.innerHeight,
+      })),
+    );
+    if (
+      resized.innerWidth * resized.dpr < scenario.project.viewport.width ||
+      resized.innerHeight * resized.dpr < scenario.project.viewport.height
+    ) {
+      throw new Error(
+        'Narrated capture cannot fill the requested frame. The window backs ' +
+          Math.round(resized.innerWidth * resized.dpr) + 'x' +
+          Math.round(resized.innerHeight * resized.dpr) +
+          ' device pixels at devicePixelRatio ' + resized.dpr +
+          ', but project.viewport asks for ' +
+          scenario.project.viewport.width + 'x' + scenario.project.viewport.height +
+          '. Move the browser to a larger or higher-density display, or lower project.viewport.',
+      );
+    }
+
+    // captureScale cannot exceed what the display natively backs. Asking for 1.5x
+    // on a devicePixelRatio-1 screen does not upscale the captured surface: the
+    // frame still reports the declared size while the app fills only a corner of
+    // it, and every mechanical check passes. Clamp to the real ratio and widen
+    // the CSS layout to compensate.
+    const effectiveScale = Math.min(
+      scenario.project.captureScale,
+      resized.dpr || 1,
+    );
+    const effectiveLayout = {
+      width: Math.round(scenario.project.viewport.width / effectiveScale),
+      height: Math.round(scenario.project.viewport.height / effectiveScale),
+    };
     await runBounded(() =>
       cdpSession.send('Emulation.setDeviceMetricsOverride', {
-        deviceScaleFactor: scenario.project.captureScale,
-        height: layout.height,
+        deviceScaleFactor: effectiveScale,
+        height: effectiveLayout.height,
         mobile: false,
-        width: layout.width,
+        width: effectiveLayout.width,
       }),
     );
     metricsOverridden = true;
     await waitBounded(1_200);
+
+    // Prove the surface can actually back the requested frame. Without this the
+    // capture degrades silently: the file still reports the declared dimensions
+    // while the app occupies a corner of it, and every mechanical check passes.
+    const surface = await runBounded(() =>
+      page.evaluate(() => ({
+        width: Math.round(window.innerWidth * window.devicePixelRatio),
+        height: Math.round(window.innerHeight * window.devicePixelRatio),
+      })),
+    );
+    if (
+      surface.width < scenario.project.viewport.width ||
+      surface.height < scenario.project.viewport.height
+    ) {
+      throw new Error(
+        'Narrated capture cannot fill the requested frame: the browser window backs ' +
+          surface.width + 'x' + surface.height + ' device pixels but the capture needs ' +
+          scenario.project.viewport.width + 'x' + scenario.project.viewport.height +
+          '. Enlarge or maximize the browser window, or lower project.viewport.',
+      );
+    }
     assertCurrentUrl();
     assertAllFrameUrls();
 
@@ -545,6 +650,17 @@ export function buildNarratedCaptureScript({
       if (metricsOverridden) {
         await cdpSession
           .send('Emulation.clearDeviceMetricsOverride')
+          .catch(() => undefined);
+      }
+      if (windowResized && originalWindowBounds) {
+        await cdpSession
+          .send('Browser.setWindowBounds', {
+            windowId: originalWindowBounds.windowId,
+            bounds: {
+              width: originalWindowBounds.bounds.width,
+              height: originalWindowBounds.bounds.height,
+            },
+          })
           .catch(() => undefined);
       }
       await cdpSession.detach().catch(() => undefined);

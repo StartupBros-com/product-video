@@ -201,7 +201,11 @@ export function canonicalizeSrtCues(
   let previousEnd = window.startMs;
   return cues.map((cue) => {
     if (cue.startMs < previousEnd) {
-      throw new Error('SRT captions must be ordered and non-overlapping');
+      throw new Error(
+        cue.startMs < window.startMs
+          ? `SRT caption starts at ${cue.startMs}ms, before the selected window opens at ${window.startMs}ms`
+          : 'SRT captions must be ordered and non-overlapping',
+      );
     }
     if (cue.startMs < window.startMs || cue.endMs > window.endMs) {
       throw new Error(
@@ -402,6 +406,7 @@ export async function prepareNarratedCapture({
           authoredCues,
           collectCueAnchors(telemetry.events),
           selectedWindow.endMs,
+          selectedWindow.startMs,
         )[index]!;
         return { ...cue, startMs: aligned.startMs, endMs: aligned.endMs };
       })
