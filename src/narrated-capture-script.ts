@@ -165,7 +165,6 @@ export function buildNarratedCaptureScript({
       y: box.y,
       width: box.width,
       height: box.height,
-      seed,
     });
     const steps = Math.max(1, Math.floor(durationMs / pointerStepMs));
     const path = planGlidePath({

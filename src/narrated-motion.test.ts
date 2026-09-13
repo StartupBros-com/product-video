@@ -72,29 +72,31 @@ test('the same move twice produces identical paths', () => {
   assert.deepEqual(planGlidePath(args), planGlidePath(args));
 });
 
-test('pointer aim stays inside the element but off its exact centre', () => {
+test('pointer aim lands precisely on the target centre', () => {
   const box = { x: 200, y: 120, width: 300, height: 80 };
-  const aim = planPointerTarget({ ...box, seed: 9.1 });
-  assert.ok(aim.x > box.x && aim.x < box.x + box.width);
-  assert.ok(aim.y > box.y && aim.y < box.y + box.height);
-  const centreX = box.x + box.width / 2;
-  const centreY = box.y + box.height / 2;
-  assert.ok(
-    Math.abs(aim.x - centreX) > 0.01 || Math.abs(aim.y - centreY) > 0.01,
-    'aim landed on the exact geometric centre',
-  );
+  const aim = planPointerTarget(box);
+  // Precision is the polish signal here; an offset would read as sloppy aim.
+  assert.deepEqual(aim, { x: 350, y: 160 });
 });
 
-test('dwell drift stays small but never repeats a frozen point', () => {
-  const path = planDriftPath({ x: 400, y: 300, steps: 30, seed: 2.2 });
-  assert.equal(path.length, 30);
+test('dwell drift is a smooth sub-pixel float, not jitter', () => {
+  const path = planDriftPath({ x: 400, y: 300, steps: 40, seed: 2.2 });
+  assert.equal(path.length, 40);
   for (const point of path) {
-    assert.ok(Math.hypot(point.x - 400, point.y - 300) < 4, 'drift too large');
+    assert.ok(Math.hypot(point.x - 400, point.y - 300) < 2, 'drift too large');
+  }
+  // Smooth means each step is a small continuation, not a random hop.
+  for (let index = 1; index < path.length; index += 1) {
+    const step = Math.hypot(
+      path[index]!.x - path[index - 1]!.x,
+      path[index]!.y - path[index - 1]!.y,
+    );
+    assert.ok(step < 0.12, `drift step ${step} reads as jitter, not a float`);
   }
   const unique = new Set(
-    path.map((p) => `${p.x.toFixed(3)},${p.y.toFixed(3)}`),
+    path.map((p) => `${p.x.toFixed(4)},${p.y.toFixed(4)}`),
   );
-  assert.ok(unique.size > 20, 'drift is effectively frozen');
+  assert.ok(unique.size > 30, 'drift is effectively frozen');
 });
 
 test('the injected helper source carries the functions the program calls', () => {

@@ -8,6 +8,7 @@ import {
   parseNarratedCaptureBundle,
   parseNarratedTelemetry,
 } from './narrated-contracts';
+import { alignCuesToAnchors, collectCueAnchors } from './narrated-cue-timing';
 import { assertCaptureSourceDuration } from './narrated-duration';
 import {
   assertNarratedFileSha256,
@@ -307,11 +308,13 @@ async function normalizeNarrationAudio(inputPath: string, outputPath: string) {
 }
 
 export async function prepareNarratedCapture({
+  alignCues = true,
   captureBundlePath,
   captionsPath,
   narrationPath,
   window,
 }: {
+  alignCues?: boolean;
   captureBundlePath: string;
   captionsPath: string;
   narrationPath: string;
@@ -386,10 +389,21 @@ export async function prepareNarratedCapture({
   assertNarrationMatchesWindow(narrationInput, selectedWindow, allowedDriftMs);
 
   await assertSingleLinkRegularFile(captionsPath);
-  const captions = canonicalizeSrtCues(
-    parseStrictSrt(await readFile(captionsPath, 'utf8')),
-    selectedWindow,
-  );
+  const authoredCues = parseStrictSrt(await readFile(captionsPath, 'utf8'));
+  // Hand-authored windows drift from the footage; snapping each start onto the
+  // telemetry that changed the screen removes the guess. Canonicalization still
+  // runs afterwards, so ordering and window bounds are enforced on the result.
+  const timedCues = alignCues
+    ? authoredCues.map((cue, index) => {
+        const aligned = alignCuesToAnchors(
+          authoredCues,
+          collectCueAnchors(telemetry.events),
+          selectedWindow.endMs,
+        )[index]!;
+        return { ...cue, startMs: aligned.startMs, endMs: aligned.endMs };
+      })
+    : authoredCues;
+  const captions = canonicalizeSrtCues(timedCues, selectedWindow);
   if (captions.length === 0) {
     throw new Error('Narrated preparation requires at least one caption cue');
   }

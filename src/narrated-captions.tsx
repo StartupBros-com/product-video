@@ -52,7 +52,11 @@ export function NarratedCaptions({
         <div
           key={cue.id}
           style={{
-            background: `${background}e6`,
+            // Near-opaque with a blur behind it. At 90% the underlying UI bled
+            // through over busy content: legible enough to look fine in motion,
+            // but OCR picked up form-field fragments mixed into the caption.
+            background: `${background}f5`,
+            backdropFilter: 'blur(10px)',
             borderRadius: scaled(12),
             boxShadow: '0 10px 28px rgba(0, 0, 0, 0.35)',
             color: foreground,

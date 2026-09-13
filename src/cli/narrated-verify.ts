@@ -192,6 +192,26 @@ type OcrResult = {
   texts: string[];
 };
 
+/** Captions occupy the lower band between the 12% side insets. */
+function cropToCaptionBand(image: string) {
+  const output = image.replace(/\.png$/, '.caption-band.png');
+  try {
+    run('ffmpeg', [
+      '-v',
+      'error',
+      '-i',
+      image,
+      '-vf',
+      'crop=iw*0.76:ih*0.30:iw*0.12:ih*0.68',
+      '-y',
+      output,
+    ]);
+    return output;
+  } catch {
+    return image;
+  }
+}
+
 function runOcr(images: string[], mode: OcrMode): OcrResult {
   if (mode === 'off') {
     return { reason: 'OCR disabled by --ocr off', status: 'off', texts: [] };
@@ -206,9 +226,16 @@ function runOcr(images: string[], mode: OcrMode): OcrResult {
       texts: [],
     };
   }
-  const texts = images.map((image) =>
-    run('tesseract', [image, 'stdout']).trim(),
-  );
+  // Tesseract reads a frame line by line, so UI sitting either side of a caption
+  // lands on the caption's own line and breaks a contiguous match. Captions are
+  // drawn in a known band, so crop to it before reading: a stricter check than
+  // loosening the assertion, because surrounding chrome can no longer contribute.
+  const texts = images.map((image) => {
+    const cropped = image.includes('-caption-')
+      ? cropToCaptionBand(image)
+      : image;
+    return run('tesseract', [cropped, 'stdout']).trim();
+  });
   return {
     reason: 'Tesseract ran on the labeled evidence samples',
     status: 'ran',

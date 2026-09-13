@@ -1,5 +1,7 @@
 /**
- * Pointer motion that reads as a hand rather than a tween.
+ * Pointer motion built for polish rather than mimicry. The goal is not to pass
+ * as a human hand — viewers know it is generated — it is motion a brand would
+ * ship: curved, decisively eased, sampled above the frame rate.
  *
  * These functions are injected verbatim into the generated capture program via
  * `Function.prototype.toString()`, so they must stay self-contained: no imports,
@@ -32,8 +34,9 @@ export type MotionPoint = { x: number; y: number };
 
 /**
  * A quadratic Bezier whose control point sits perpendicular to the straight
- * line. Longer moves bow more, which is what a wrist does; the sign alternates
- * with the seed so successive moves do not all curve the same way.
+ * line, so travel arcs instead of ruling a line across the screen. Longer moves
+ * bow more; the direction varies deterministically with the target so a
+ * sequence of moves does not trace the same arc every time.
  */
 export function planGlidePath({
   fromX,
@@ -83,31 +86,27 @@ export function planGlidePath({
 }
 
 /**
- * Humans do not click the geometric centre. Aim inside the middle half of the
- * element so repeated runs vary without ever leaving the target.
+ * Land on the target's centre. A randomized offset was an attempt to look
+ * human; against a polish bar it just reads as imprecise aim.
  */
 export function planPointerTarget({
   x,
   y,
   width,
   height,
-  seed,
 }: {
   x: number;
   y: number;
   width: number;
   height: number;
-  seed: number;
 }): MotionPoint {
-  return {
-    x: x + width / 2 + motionJitter(seed) * width * 0.18,
-    y: y + height / 2 + motionJitter(seed + 7.3) * height * 0.18,
-  };
+  return { x: x + width / 2, y: y + height / 2 };
 }
 
 /**
- * A hand resting on a mouse still drifts. Without this the overlay freezes for
- * seconds at a time, which is the strongest tell that the cursor is synthetic.
+ * A barely-perceptible float while dwelling. A perfectly frozen cursor looks
+ * dead on screen, but random jitter reads as noise — this is a slow, smooth
+ * orbit measured in fractions of a pixel per frame.
  */
 export function planDriftPath({
   x,
@@ -122,13 +121,10 @@ export function planDriftPath({
 }): MotionPoint[] {
   const points: MotionPoint[] = [];
   for (let index = 1; index <= steps; index += 1) {
-    const phase = index / 6;
+    const phase = index / 34 + seed;
     points.push({
-      x: x + Math.sin(phase + seed) * 1.6 + motionJitter(seed + index) * 0.5,
-      y:
-        y +
-        Math.cos(phase * 0.7 + seed) * 1.2 +
-        motionJitter(seed - index) * 0.5,
+      x: x + Math.sin(phase) * 1.1,
+      y: y + Math.cos(phase * 0.6) * 0.8,
     });
   }
   return points;
