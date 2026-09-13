@@ -192,6 +192,32 @@ type OcrResult = {
   texts: string[];
 };
 
+/**
+ * Captions are capped at 1000 design px, centred, so at any scale they span
+ * roughly 11%-89% of the frame. Crop to 10%-90%: wide enough to keep the
+ * caption's own edges, tight enough to exclude page chrome that would otherwise
+ * land on the caption's OCR line. Upscaled 2x because Tesseract misreads caption
+ * text at its native size ("together in" came back as "togethe!").
+ */
+function cropToCaptionBand(image: string) {
+  const output = image.replace(/\.png$/, '.caption-band.png');
+  try {
+    run('ffmpeg', [
+      '-v',
+      'error',
+      '-i',
+      image,
+      '-vf',
+      'crop=iw*0.80:ih*0.32:iw*0.10:ih*0.66,scale=iw*2:ih*2:flags=lanczos',
+      '-y',
+      output,
+    ]);
+    return output;
+  } catch {
+    return image;
+  }
+}
+
 function runOcr(images: string[], mode: OcrMode): OcrResult {
   if (mode === 'off') {
     return { reason: 'OCR disabled by --ocr off', status: 'off', texts: [] };
@@ -206,9 +232,16 @@ function runOcr(images: string[], mode: OcrMode): OcrResult {
       texts: [],
     };
   }
-  const texts = images.map((image) =>
-    run('tesseract', [image, 'stdout']).trim(),
-  );
+  // Tesseract reads a frame line by line, so UI sitting either side of a caption
+  // lands on the caption's own line and breaks a contiguous match. Captions are
+  // drawn in a known band, so crop to it before reading: a stricter check than
+  // loosening the assertion, because surrounding chrome can no longer contribute.
+  const texts = images.map((image) => {
+    const cropped = image.includes('-caption-')
+      ? cropToCaptionBand(image)
+      : image;
+    return run('tesseract', [cropped, 'stdout']).trim();
+  });
   return {
     reason: 'Tesseract ran on the labeled evidence samples',
     status: 'ran',

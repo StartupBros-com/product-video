@@ -108,13 +108,13 @@ export const narratedResolvedManifestSchema = z
         path: ['durationMs'],
       });
     }
-    if (
-      manifest.source.marker.tMs < manifest.source.sourceStartMs ||
-      manifest.source.marker.tMs >= manifest.source.sourceEndMs
-    ) {
+    // The marker is a capture-space alignment reference, so it may sit before a
+    // trimmed window; head-trimming is precisely what the window feature is for.
+    // It must never sit past the window, which would mean the wrong capture.
+    if (manifest.source.marker.tMs >= manifest.source.sourceEndMs) {
       context.addIssue({
         code: 'custom',
-        message: 'Capture marker must be inside the selected source window',
+        message: 'Capture marker must not fall past the selected source window',
         path: ['source', 'marker', 'tMs'],
       });
     }

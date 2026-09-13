@@ -2,12 +2,21 @@ import {
   type NarratedScenario,
   getNarratedCaptureLayout,
 } from './narrated-contracts';
+import { buildMotionHelperSource } from './narrated-motion';
 import type { NarratedRunPaths } from './narrated-files';
 
 type CaptureScriptOptions = {
   scenario: NarratedScenario;
   paths: NarratedRunPaths;
 };
+
+/**
+ * How long the alignment clapperboard is painted into the recording. The
+ * deliverable window starts after it: the marker exists to prove the video and
+ * telemetry share an origin, not to be watched. Measured, not assumed — the
+ * chapter fades out, so it is still legible past its declared 500ms duration.
+ */
+export const captureMarkerVisibleMs = 1_000;
 
 export function buildNarratedCaptureScript({
   scenario,
@@ -17,6 +26,7 @@ export function buildNarratedCaptureScript({
   const serializedLayout = JSON.stringify(
     getNarratedCaptureLayout(scenario.project),
   );
+  const motionHelpers = buildMotionHelperSource();
   const serializedOutput = JSON.stringify({
     videoPath: paths.captureVideoPath,
     telemetryPath: paths.telemetryPath,
@@ -24,6 +34,7 @@ export function buildNarratedCaptureScript({
   });
 
   return `async (page) => {
+  ${motionHelpers}
   const scenario = ${serializedScenario};
   const layout = ${serializedLayout};
   const output = ${serializedOutput};
@@ -148,34 +159,56 @@ export function buildNarratedCaptureScript({
     }
     return locator;
   };
-  const easeInOut = (progress) =>
-    progress < 0.5
-      ? 2 * progress * progress
-      : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+  // 16ms keeps at least one real sample per 30fps frame; the previous 40ms
+  // sampled below the frame rate and the overlay had to invent the gaps.
+  const pointerStepMs = 16;
   const glideTo = async (locator, durationMs) => {
     const box = await runBounded(() => locator.boundingBox());
     if (!box || !(box.width > 0) || !(box.height > 0)) {
       throw new Error('Narrated capture could not resolve a pointer target box');
     }
-    const toX = box.x + box.width / 2;
-    const toY = box.y + box.height / 2;
-    const fromX = cursorX;
-    const fromY = cursorY;
-    const stepMs = 40;
-    const steps = Math.floor(durationMs / stepMs);
-    for (let index = 1; index <= steps; index += 1) {
-      const progress = easeInOut(index / steps);
-      await runBounded(() =>
-        page.mouse.move(
-          fromX + (toX - fromX) * progress,
-          fromY + (toY - fromY) * progress,
-        ),
-      );
-      await waitBounded(stepMs);
+    const seed = box.x + box.y * 1.7 + box.width * 0.3;
+    const aim = planPointerTarget({
+      x: box.x,
+      y: box.y,
+      width: box.width,
+      height: box.height,
+    });
+    const steps = Math.max(1, Math.floor(durationMs / pointerStepMs));
+    const path = planGlidePath({
+      fromX: cursorX,
+      fromY: cursorY,
+      toX: aim.x,
+      toY: aim.y,
+      steps,
+      seed,
+    });
+    for (const point of path) {
+      await runBounded(() => page.mouse.move(point.x, point.y));
+      await waitBounded(pointerStepMs);
     }
-    cursorX = toX;
-    cursorY = toY;
-    await runBounded(() => page.mouse.move(toX, toY));
+    cursorX = aim.x;
+    cursorY = aim.y;
+  };
+  // A resting hand still drifts. Without this the pointer freezes for seconds,
+  // which is the strongest tell that the cursor is not real.
+  const dwell = async (durationMs) => {
+    if (durationMs <= 0) return;
+    const steps = Math.floor(durationMs / pointerStepMs);
+    if (steps < 2) {
+      await waitBounded(durationMs);
+      return;
+    }
+    const path = planDriftPath({
+      x: cursorX,
+      y: cursorY,
+      steps,
+      seed: cursorX * 0.11 + cursorY * 0.07,
+    });
+    for (const point of path) {
+      await runBounded(() => page.mouse.move(point.x, point.y));
+      await waitBounded(pointerStepMs);
+    }
   };
   const append = (event) => {
     const tMs = Math.max(0, Date.now() - (captureStartedAt ?? startedAt));
@@ -257,7 +290,7 @@ export function buildNarratedCaptureScript({
       let lastScrollAt = -Infinity;
       const onPointer = (event) => {
         const now = performance.now();
-        if (now - lastPointerAt < 50) return;
+        if (now - lastPointerAt < 15) return;
         lastPointerAt = now;
         send({channel: 'cursor', ...point(event)});
       };
@@ -400,10 +433,6 @@ export function buildNarratedCaptureScript({
     // recording can never offset an overlay from the frame it annotates.
     captureStartedAt = Date.now();
     markerTimeMs = 0;
-    await runBounded(() => page.screencast.showChapter('CAPTURE ALIGNMENT MARKER', {
-      description: 'NarratedBrowserTour v1 clapperboard',
-      duration: 500,
-    }));
     await installListeners();
     await runBounded(() => page.mouse.move(cursorX, cursorY));
 
@@ -432,23 +461,23 @@ export function buildNarratedCaptureScript({
         await runBounded(() => locator.click({
           timeout: remainingMs(),
         }));
-        await waitBounded(step.pauseAfterMs);
+        await dwell(step.pauseAfterMs);
         assertCurrentUrl();
         assertAllFrameUrls();
         await installListeners();
       } else if (step.type === 'move') {
         const locator = await assertSafeClickTarget(step.selector);
         await glideTo(locator, step.durationMs);
-        await waitBounded(step.pauseAfterMs);
+        await dwell(step.pauseAfterMs);
         assertCurrentUrl();
         assertAllFrameUrls();
       } else if (step.type === 'scroll') {
         await runBounded(() => page.mouse.wheel(0, step.deltaY));
-        await waitBounded(step.pauseAfterMs);
+        await dwell(step.pauseAfterMs);
         assertCurrentUrl();
         assertAllFrameUrls();
       } else {
-        await waitBounded(step.durationMs);
+        await dwell(step.durationMs);
       }
       await drainTelemetry();
       throwIfFailed();

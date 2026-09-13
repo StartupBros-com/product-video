@@ -40,7 +40,10 @@ test('narrated capture dry-run emits inspectable code and creates no run', () =>
   };
 
   assert.equal(parsed.runId, runId);
-  assert.match(parsed.script, /CAPTURE ALIGNMENT MARKER/);
+  // The alignment clapperboard is no longer painted: telemetry and video
+  // share an origin by construction, and the overlay leaked into deliverables.
+  assert.doesNotMatch(parsed.script, /CAPTURE ALIGNMENT MARKER/);
+  assert.match(parsed.script, /markerTimeMs = 0;/);
   assert.equal(existsSync(getNarratedRunPaths(runId).runDirectory), false);
 });
 
