@@ -188,7 +188,10 @@ export function buildNarratedSamplePlan(manifest: NarratedResolvedManifest) {
     'last',
     manifest.durationMs - Math.min(frameMs * 2, 1_000),
   );
-  addSample(samples, 'marker', sourceToOutputTime(manifest.source.marker.tMs));
+  const markerOutputMs = sourceToOutputTime(manifest.source.marker.tMs);
+  if (markerOutputMs >= 0 && markerOutputMs < manifest.durationMs) {
+    addSample(samples, 'marker', markerOutputMs);
+  }
 
   const selectedEvents = manifest.telemetry.events.filter(
     (event) =>

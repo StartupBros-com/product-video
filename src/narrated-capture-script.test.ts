@@ -20,7 +20,10 @@ test('narrated capture script is deterministic and records only safe telemetry',
 
   assert.equal(first, second);
   assert.match(first, /page\.screencast\.start/);
-  assert.match(first, /CAPTURE ALIGNMENT MARKER/);
+  // The alignment clapperboard is no longer painted: telemetry and video
+  // share an origin by construction, and the overlay leaked into deliverables.
+  assert.doesNotMatch(first, /CAPTURE ALIGNMENT MARKER/);
+  assert.match(first, /markerTimeMs = 0;/);
   assert.match(first, /context\.route/);
   assert.match(first, /popup/);
   assert.match(first, /download/);

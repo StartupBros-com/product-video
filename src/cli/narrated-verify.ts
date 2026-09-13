@@ -192,7 +192,13 @@ type OcrResult = {
   texts: string[];
 };
 
-/** Captions occupy the lower band between the 12% side insets. */
+/**
+ * Captions are capped at 1000 design px, centred, so at any scale they span
+ * roughly 11%-89% of the frame. Crop to 10%-90%: wide enough to keep the
+ * caption's own edges, tight enough to exclude page chrome that would otherwise
+ * land on the caption's OCR line. Upscaled 2x because Tesseract misreads caption
+ * text at its native size ("together in" came back as "togethe!").
+ */
 function cropToCaptionBand(image: string) {
   const output = image.replace(/\.png$/, '.caption-band.png');
   try {
@@ -202,7 +208,7 @@ function cropToCaptionBand(image: string) {
       '-i',
       image,
       '-vf',
-      'crop=iw*0.76:ih*0.30:iw*0.12:ih*0.68',
+      'crop=iw*0.80:ih*0.32:iw*0.10:ih*0.66,scale=iw*2:ih*2:flags=lanczos',
       '-y',
       output,
     ]);

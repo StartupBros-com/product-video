@@ -108,12 +108,32 @@ function normalizeOcrText(value: string) {
     .trim();
 }
 
+/**
+ * OCR wraps a caption across lines and occasionally emits a stray glyph at a
+ * line boundary, so an exact substring match fails on text a human reads
+ * perfectly. Requiring every word in order still fails a wrong or absent
+ * caption — the words would differ — without failing on line breaks.
+ */
+function containsWordsInOrder(haystack: string, needle: string) {
+  if (haystack.includes(needle)) return true;
+  const words = needle.split(' ').filter(Boolean);
+  if (words.length === 0) return false;
+  let cursor = 0;
+  for (const word of words) {
+    const found = haystack.indexOf(word, cursor);
+    if (found === -1) return false;
+    cursor = found + word.length;
+  }
+  return true;
+}
+
 export function assertRequiredOcrText(text: string, requiredTerms: string[]) {
   const normalizedText = normalizeOcrText(text);
   const missingTerms = requiredTerms.filter((term) => {
     const normalizedTerm = normalizeOcrText(term);
     return (
-      normalizedTerm.length === 0 || !normalizedText.includes(normalizedTerm)
+      normalizedTerm.length === 0 ||
+      !containsWordsInOrder(normalizedText, normalizedTerm)
     );
   });
   if (missingTerms.length > 0) {

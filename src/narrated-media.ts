@@ -9,6 +9,7 @@ import {
   parseNarratedTelemetry,
 } from './narrated-contracts';
 import { alignCuesToAnchors, collectCueAnchors } from './narrated-cue-timing';
+import { captureMarkerVisibleMs } from './narrated-capture-script';
 import { assertCaptureSourceDuration } from './narrated-duration';
 import {
   assertNarratedFileSha256,
@@ -367,8 +368,10 @@ export async function prepareNarratedCapture({
   });
   const allowedDriftMs = Math.max(100, Math.ceil(2_000 / capture.fps));
 
+  // Start after the clapperboard. It is recorded on purpose so alignment can be
+  // verified, but it is a diagnostic and must never reach the deliverable.
   const selectedWindow = window ?? {
-    startMs: 0,
+    startMs: capture.marker.tMs + captureMarkerVisibleMs,
     endMs: capture.durationMs,
   };
   assertCaptureWindow(selectedWindow);

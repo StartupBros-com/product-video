@@ -10,6 +10,14 @@ type CaptureScriptOptions = {
   paths: NarratedRunPaths;
 };
 
+/**
+ * How long the alignment clapperboard is painted into the recording. The
+ * deliverable window starts after it: the marker exists to prove the video and
+ * telemetry share an origin, not to be watched. Measured, not assumed — the
+ * chapter fades out, so it is still legible past its declared 500ms duration.
+ */
+export const captureMarkerVisibleMs = 1_000;
+
 export function buildNarratedCaptureScript({
   scenario,
   paths,
@@ -425,10 +433,6 @@ export function buildNarratedCaptureScript({
     // recording can never offset an overlay from the frame it annotates.
     captureStartedAt = Date.now();
     markerTimeMs = 0;
-    await runBounded(() => page.screencast.showChapter('CAPTURE ALIGNMENT MARKER', {
-      description: 'NarratedBrowserTour v1 clapperboard',
-      duration: 500,
-    }));
     await installListeners();
     await runBounded(() => page.mouse.move(cursorX, cursorY));
 
