@@ -17,12 +17,18 @@ const HELP = `Synthesize narration for a NarratedBrowserTour caption track.
 Usage:
   pnpm narrated:voice \\
     --captions <operator.srt> \\
-    --duration-ms <capture-duration-ms> \\
+    --duration-ms <window-duration-ms> \\
+    [--start-ms <window-start-ms>] \\
     --voice <elevenlabs-voice-id> \\
     --out <narration.wav>
 
 Each caption cue is synthesized separately and placed at its own start time, so
-the voice cannot drift from the words on screen. Requires ELEVENLABS_API_KEY.
+the voice cannot drift from the words on screen.
+
+Captions are authored in capture time, the same as the SRT handed to prepare.
+When the deliverable trims a head (prepare does this to drop the alignment
+marker), pass that trim as --start-ms so the narration lands on the same frames
+the captions do. Requires ELEVENLABS_API_KEY.
 The command writes one local WAV. It never uploads, publishes, or sends.
 `;
 
@@ -101,6 +107,7 @@ async function main() {
     options: {
       captions: { type: 'string' },
       'duration-ms': { type: 'string' },
+      'start-ms': { type: 'string' },
       help: { type: 'boolean', default: false, short: 'h' },
       out: { type: 'string' },
       voice: { type: 'string' },
@@ -128,9 +135,18 @@ async function main() {
   }
 
   const apiKey = loadApiKey();
+  const startMs = Number(values['start-ms'] ?? 0);
+  if (!Number.isInteger(startMs) || startMs < 0) {
+    throw new Error('--start-ms must be a non-negative integer');
+  }
+  // Shift capture-time cues into the delivered window, exactly as prepare does.
   const cues = planNarrationCues(
     await readFile(path.resolve(values.captions), 'utf8'),
-  );
+  ).map((cue) => ({
+    ...cue,
+    startMs: cue.startMs - startMs,
+    endMs: cue.endMs - startMs,
+  }));
   assertNarrationFitsTimeline(cues, durationMs);
 
   const workDirectory = await mkdtemp(path.join(tmpdir(), 'narrated-voice-'));

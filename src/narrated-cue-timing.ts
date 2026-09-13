@@ -48,9 +48,12 @@ export function alignCuesToAnchors(
   cues: readonly TimedCue[],
   anchors: readonly CueAnchor[],
   durationMs: number,
+  floorMs = 0,
 ): TimedCue[] {
   const aligned: TimedCue[] = [];
-  let previousEnd = 0;
+  // An anchor can sit before the delivered window when the head is trimmed;
+  // snapping to it would push a cue outside the window entirely.
+  let previousEnd = floorMs;
 
   for (const cue of cues) {
     const span = cue.endMs - cue.startMs;
