@@ -1,8 +1,8 @@
-import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { rm } from 'node:fs/promises';
 import path from 'node:path';
 
+import { runNarratedCommand as run } from './narrated-command';
 import { isCommandAvailable } from './command-availability';
 import {
   type NarratedCaptureBundle,
@@ -72,19 +72,6 @@ Open reports.
 00:00:02,200 --> 00:00:04,000
 Review progress.
 `;
-
-function run(command: string, arguments_: string[]) {
-  const result = spawnSync(command, arguments_, {
-    encoding: 'utf8',
-    maxBuffer: 20 * 1024 * 1024,
-    timeout: 5 * 60 * 1_000,
-  });
-  if (result.status !== 0) {
-    const detail =
-      result.error?.message || result.stderr.trim() || result.stdout.trim();
-    throw new Error(`${command} failed${detail ? `: ${detail}` : ''}`);
-  }
-}
 
 export function assertSyntheticNarratedFixturePrerequisites() {
   const missing = ['ffmpeg', 'ffprobe'].filter(

@@ -1,8 +1,8 @@
-import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { lstat, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 
+import { runNarratedCommand as run } from './narrated-command';
 import {
   assertRenderableNarratedCapture,
   parseNarratedCaptureBundle,
@@ -57,20 +57,6 @@ export type CaptureWindow = {
 };
 
 type ParsedSrtCue = NarratedCaptionCue;
-
-function run(command: string, arguments_: string[]) {
-  const result = spawnSync(command, arguments_, {
-    encoding: 'utf8',
-    maxBuffer: 20 * 1024 * 1024,
-    timeout: 5 * 60 * 1_000,
-  });
-  if (result.status !== 0) {
-    const detail =
-      result.error?.message || result.stderr.trim() || result.stdout.trim();
-    throw new Error(`${command} failed${detail ? `: ${detail}` : ''}`);
-  }
-  return result.stdout;
-}
 
 function positiveDurationMs(value: string | undefined) {
   const seconds = Number(value);
