@@ -1,8 +1,8 @@
-import { spawnSync } from 'node:child_process';
 import { lstat, readdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 
+import { runNarratedCommand as run } from '../narrated-command';
 import { isCommandAvailable } from '../command-availability';
 import { readJsonFile } from '../files';
 import {
@@ -54,20 +54,6 @@ The verifier checks capture/telemetry/captions/marker provenance, H264/yuv420p, 
 `;
 
 type OcrMode = 'auto' | 'off' | 'required';
-
-function run(command: string, arguments_: string[]) {
-  const result = spawnSync(command, arguments_, {
-    encoding: 'utf8',
-    maxBuffer: 20 * 1024 * 1024,
-    timeout: 5 * 60 * 1_000,
-  });
-  if (result.status !== 0) {
-    const detail =
-      result.error?.message || result.stderr.trim() || result.stdout.trim();
-    throw new Error(`${command} failed${detail ? `: ${detail}` : ''}`);
-  }
-  return result.stdout;
-}
 
 function probe(filePath: string, countFrames: boolean) {
   const arguments_ = [
