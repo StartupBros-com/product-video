@@ -1,8 +1,8 @@
-import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { lstat, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 
+import { runNarratedCommand as run } from './narrated-command';
 import {
   assertRenderableNarratedCapture,
   parseNarratedCaptureBundle,
@@ -10,7 +10,10 @@ import {
 } from './narrated-contracts';
 import { alignCuesToAnchors, collectCueAnchors } from './narrated-cue-timing';
 import { captureMarkerVisibleMs } from './narrated-capture-script';
-import { assertCaptureSourceDuration } from './narrated-duration';
+import {
+  assertCaptureSourceDuration,
+  getNarratedDurationToleranceMs,
+} from './narrated-duration';
 import {
   assertNarratedFileSha256,
   assertNarratedPublicAsset,
@@ -57,20 +60,6 @@ export type CaptureWindow = {
 };
 
 type ParsedSrtCue = NarratedCaptionCue;
-
-function run(command: string, arguments_: string[]) {
-  const result = spawnSync(command, arguments_, {
-    encoding: 'utf8',
-    maxBuffer: 20 * 1024 * 1024,
-    timeout: 5 * 60 * 1_000,
-  });
-  if (result.status !== 0) {
-    const detail =
-      result.error?.message || result.stderr.trim() || result.stdout.trim();
-    throw new Error(`${command} failed${detail ? `: ${detail}` : ''}`);
-  }
-  return result.stdout;
-}
 
 function positiveDurationMs(value: string | undefined) {
   const seconds = Number(value);
@@ -370,7 +359,7 @@ export async function prepareNarratedCapture({
     fps: capture.fps,
     observedDurationMs: sourceMedia.durationMs,
   });
-  const allowedDriftMs = Math.max(100, Math.ceil(2_000 / capture.fps));
+  const allowedDriftMs = getNarratedDurationToleranceMs(capture.fps);
 
   // Start after the clapperboard. It is recorded on purpose so alignment can be
   // verified, but it is a diagnostic and must never reach the deliverable.

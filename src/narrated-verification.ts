@@ -1,3 +1,4 @@
+import { getNarratedDurationToleranceMs } from './narrated-duration';
 import {
   type NarratedCaptureBundle,
   assertRenderableNarratedCapture,
@@ -107,7 +108,7 @@ export function assertNarratedDurationMatches(
   observedDurationMs: number,
   manifest: NarratedResolvedManifest,
 ) {
-  const toleranceMs = Math.max(100, Math.ceil(2_000 / manifest.project.fps));
+  const toleranceMs = getNarratedDurationToleranceMs(manifest.project.fps);
   if (Math.abs(observedDurationMs - manifest.durationMs) > toleranceMs) {
     throw new Error(
       `Narrated duration drift exceeds ${toleranceMs}ms; refusing to hide source/render mismatch`,

@@ -350,6 +350,22 @@ async function assertMissingTarget(targetPath: string) {
   );
 }
 
+async function linkAndFinalizeNarratedFile(
+  temporaryPath: string,
+  targetPath: string,
+) {
+  try {
+    await link(temporaryPath, targetPath);
+  } finally {
+    await unlink(temporaryPath).catch((error: unknown) => {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw error;
+      }
+    });
+  }
+  await chmod(targetPath, 0o600);
+}
+
 async function writeAtomically(targetPath: string, content: string) {
   await mkdir(path.dirname(targetPath), { recursive: true, mode: 0o700 });
   await assertNoSymlinkAncestors(path.dirname(targetPath), targetPath);
@@ -367,16 +383,7 @@ async function writeAtomically(targetPath: string, content: string) {
     await handle.close();
   }
 
-  try {
-    await link(temporaryPath, targetPath);
-  } finally {
-    await unlink(temporaryPath).catch((error: unknown) => {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        throw error;
-      }
-    });
-  }
-  await chmod(targetPath, 0o600);
+  await linkAndFinalizeNarratedFile(temporaryPath, targetPath);
 }
 
 export async function writeNarratedJsonAtomically(
@@ -400,16 +407,7 @@ export async function publishNarratedFileAtomically(
   await assertSingleLinkRegularFile(temporaryPath);
   await assertNoSymlinkAncestors(path.dirname(targetPath), targetPath);
   await assertMissingTarget(targetPath);
-  try {
-    await link(temporaryPath, targetPath);
-  } finally {
-    await unlink(temporaryPath).catch((error: unknown) => {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        throw error;
-      }
-    });
-  }
-  await chmod(targetPath, 0o600);
+  await linkAndFinalizeNarratedFile(temporaryPath, targetPath);
 }
 
 async function isOwnedNarratedRenderOutput(

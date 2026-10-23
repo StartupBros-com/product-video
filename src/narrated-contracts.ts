@@ -97,6 +97,20 @@ export function getNarratedCaptureLayout(project: {
   };
 }
 
+function refineNarratedSelector(
+  step: { selector: string },
+  context: z.RefinementCtx,
+) {
+  if (prohibitedTargetPattern.test(step.selector)) {
+    context.addIssue({
+      code: 'custom',
+      message:
+        'Capture scenarios cannot target credential, consent, microphone, publishing, or other prohibited controls',
+      path: ['selector'],
+    });
+  }
+}
+
 const narratedStepSchema = z.discriminatedUnion('type', [
   z
     .object({
@@ -123,16 +137,7 @@ const narratedStepSchema = z.discriminatedUnion('type', [
       pauseAfterMs: z.number().int().min(0).max(10_000).default(800),
     })
     .strict()
-    .superRefine((step, context) => {
-      if (prohibitedTargetPattern.test(step.selector)) {
-        context.addIssue({
-          code: 'custom',
-          message:
-            'Capture scenarios cannot target credential, consent, microphone, publishing, or other prohibited controls',
-          path: ['selector'],
-        });
-      }
-    }),
+    .superRefine(refineNarratedSelector),
   z
     .object({
       type: z.literal('move'),
@@ -141,16 +146,7 @@ const narratedStepSchema = z.discriminatedUnion('type', [
       pauseAfterMs: z.number().int().min(0).max(10_000).default(400),
     })
     .strict()
-    .superRefine((step, context) => {
-      if (prohibitedTargetPattern.test(step.selector)) {
-        context.addIssue({
-          code: 'custom',
-          message:
-            'Capture scenarios cannot target credential, consent, microphone, publishing, or other prohibited controls',
-          path: ['selector'],
-        });
-      }
-    }),
+    .superRefine(refineNarratedSelector),
   z
     .object({
       type: z.literal('scroll'),
