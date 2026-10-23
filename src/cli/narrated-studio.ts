@@ -2,25 +2,9 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 
-import { packageRoot, readJsonFile } from '../files';
-import {
-  assertRenderableNarratedCapture,
-  parseNarratedCaptureBundle,
-  parseNarratedTelemetry,
-} from '../narrated-contracts';
-import {
-  assertNarratedFileSha256,
-  assertNarratedPublicAsset,
-  assertNarratedRunFile,
-  assertSingleLinkRegularFile,
-  getNarratedRunPaths,
-} from '../narrated-files';
-import {
-  type NarratedResolvedManifest,
-  parseNarratedResolvedManifest,
-} from '../narrated-resolved-contracts';
-import { assertTelemetryMatchesCapture } from '../narrated-telemetry';
-import { assertNarratedManifestMatchesCapture } from '../narrated-verification';
+import { packageRoot } from '../files';
+import { loadValidatedNarratedManifest } from '../narrated-manifest';
+import type { NarratedResolvedManifest } from '../narrated-resolved-contracts';
 
 const HELP = `Open Remotion Studio for a resolved NarratedBrowserTour v1 manifest without opening a browser window.
 
@@ -59,38 +43,7 @@ async function main() {
   }
 
   const manifestPath = path.resolve(values.manifest);
-  await assertSingleLinkRegularFile(manifestPath);
-  const manifest = parseNarratedResolvedManifest(
-    await readJsonFile(manifestPath),
-  );
-  const runPaths = getNarratedRunPaths(manifest.runId);
-  await assertNarratedRunFile(manifest.runId, manifestPath, 'resolved.v1.json');
-  await assertNarratedRunFile(
-    manifest.runId,
-    runPaths.captureBundlePath,
-    'capture.v1.json',
-  );
-  const [videoPath, telemetryPath, narrationPath] = await Promise.all([
-    assertNarratedPublicAsset(manifest.runId, manifest.source.video),
-    assertNarratedPublicAsset(manifest.runId, manifest.source.telemetry),
-    assertNarratedPublicAsset(manifest.runId, manifest.narration.audio),
-  ]);
-  const capture = assertRenderableNarratedCapture(
-    parseNarratedCaptureBundle(await readJsonFile(runPaths.captureBundlePath)),
-  );
-  const telemetry = parseNarratedTelemetry(await readJsonFile(telemetryPath));
-  assertTelemetryMatchesCapture(telemetry, capture);
-  assertNarratedManifestMatchesCapture(manifest, capture);
-  await Promise.all([
-    assertNarratedFileSha256(videoPath, manifest.source.videoSha256),
-    assertNarratedFileSha256(telemetryPath, manifest.source.telemetrySha256),
-    assertNarratedFileSha256(narrationPath, manifest.narration.audioSha256),
-  ]);
-  if (JSON.stringify(telemetry) !== JSON.stringify(manifest.telemetry)) {
-    throw new Error(
-      'Resolved manifest telemetry does not match the finalized telemetry file',
-    );
-  }
+  const manifest = await loadValidatedNarratedManifest(manifestPath);
 
   const result = spawnSync('remotion', getNarratedStudioArguments(manifest), {
     stdio: 'inherit',
