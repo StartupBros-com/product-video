@@ -10,7 +10,10 @@ import {
 } from './narrated-contracts';
 import { alignCuesToAnchors, collectCueAnchors } from './narrated-cue-timing';
 import { captureMarkerVisibleMs } from './narrated-capture-script';
-import { assertCaptureSourceDuration } from './narrated-duration';
+import {
+  assertCaptureSourceDuration,
+  getNarratedDurationToleranceMs,
+} from './narrated-duration';
 import {
   assertNarratedFileSha256,
   assertNarratedPublicAsset,
@@ -356,7 +359,7 @@ export async function prepareNarratedCapture({
     fps: capture.fps,
     observedDurationMs: sourceMedia.durationMs,
   });
-  const allowedDriftMs = Math.max(100, Math.ceil(2_000 / capture.fps));
+  const allowedDriftMs = getNarratedDurationToleranceMs(capture.fps);
 
   // Start after the clapperboard. It is recorded on purpose so alignment can be
   // verified, but it is a diagnostic and must never reach the deliverable.
