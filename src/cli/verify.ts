@@ -3,6 +3,7 @@ import { mkdir, readdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 
+import { runCommand } from '../command';
 import {
   getSceneTimeline,
   getTourDuration,
@@ -43,19 +44,7 @@ type CommandResult = {
 };
 
 function run(command: string, arguments_: string[]): CommandResult {
-  const result = spawnSync(command, arguments_, {
-    encoding: 'utf8',
-    maxBuffer: 20 * 1024 * 1024,
-    timeout: 2 * 60 * 1000,
-  });
-
-  if (result.status !== 0) {
-    const detail =
-      result.error?.message || result.stderr.trim() || result.stdout.trim();
-    throw new Error(`${command} failed${detail ? `: ${detail}` : ''}`);
-  }
-
-  return { stdout: result.stdout };
+  return { stdout: runCommand(command, arguments_, 2 * 60 * 1000) };
 }
 
 function commandAvailable(command: string) {
