@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import childProcess, { type SpawnSyncReturns } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { syncBuiltinESMExports } from 'node:module';
 import { test } from 'node:test';
 
+import { runCommand } from './command';
 import { runNarratedCommand } from './narrated-command';
 
 type CommandCase = {
@@ -68,40 +70,65 @@ const cases: CommandCase[] = [
   },
 ];
 
-for (const entry of cases) {
-  test(`narrated command ${entry.name}`, (context) => {
-    const arguments_ = ['--literal', 'space value', '$(not-shell)'];
-    const result: SpawnSyncReturns<string> = {
-      pid: 0,
-      output: [],
-      signal: null,
-      status: 0,
-      stdout: '',
-      stderr: '',
-      ...entry.result,
-    };
-    const spawn = context.mock.method(childProcess, 'spawnSync', () => result);
-    syncBuiltinESMExports();
-    try {
-      if (entry.errorMessage) {
-        assert.throws(() => runNarratedCommand('fake', arguments_), {
-          message: entry.errorMessage,
-        });
-      } else {
-        assert.equal(runNarratedCommand('fake', arguments_), entry.output);
-      }
-      assert.equal(spawn.mock.callCount(), 1);
-      const call = spawn.mock.calls[0]!;
-      assert.equal(call.arguments[0], 'fake');
-      assert.equal(call.arguments[1], arguments_);
-      assert.deepEqual(call.arguments[2], {
-        encoding: 'utf8',
-        maxBuffer: 20 * 1024 * 1024,
-        timeout: 5 * 60 * 1_000,
-      });
-    } finally {
-      spawn.mock.restore();
+for (const { timeoutMs, run } of [
+  {
+    timeoutMs: 120_000,
+    run: (command: string, args: string[]) =>
+      runCommand(command, args, 120_000),
+  },
+  { timeoutMs: 300_000, run: runNarratedCommand },
+]) {
+  for (const entry of cases) {
+    test(`command (${timeoutMs} ms) ${entry.name}`, (context) => {
+      const arguments_ = ['--literal', 'space value', '$(not-shell)'];
+      const result: SpawnSyncReturns<string> = {
+        pid: 0,
+        output: [],
+        signal: null,
+        status: 0,
+        stdout: '',
+        stderr: '',
+        ...entry.result,
+      };
+      const spawn = context.mock.method(
+        childProcess,
+        'spawnSync',
+        () => result,
+      );
       syncBuiltinESMExports();
-    }
-  });
+      try {
+        if (entry.errorMessage) {
+          assert.throws(() => run('fake', arguments_), {
+            message: entry.errorMessage,
+          });
+        } else {
+          assert.equal(run('fake', arguments_), entry.output);
+        }
+        assert.equal(spawn.mock.callCount(), 1);
+        const call = spawn.mock.calls[0]!;
+        assert.equal(call.arguments[0], 'fake');
+        assert.equal(call.arguments[1], arguments_);
+        assert.deepEqual(call.arguments[2], {
+          encoding: 'utf8',
+          maxBuffer: 20 * 1024 * 1024,
+          timeout: timeoutMs,
+        });
+      } finally {
+        spawn.mock.restore();
+        syncBuiltinESMExports();
+      }
+    });
+  }
 }
+
+test('legacy verification retains its stdout wrapper and two-minute timeout', () => {
+  const source = readFileSync(
+    new URL('./cli/verify.ts', import.meta.url),
+    'utf8',
+  );
+  assert.match(source, /import \{ runCommand \} from '\.\.\/command';/);
+  assert.match(
+    source,
+    /return \{ stdout: runCommand\(command, arguments_, 2 \* 60 \* 1000\) \};/,
+  );
+});
